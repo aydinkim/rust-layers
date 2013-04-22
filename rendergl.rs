@@ -212,7 +212,7 @@ pub fn create_texture_for_image_if_necessary(image: @mut Image) {
                                 gl2::STORAGE_CACHED_APPLE as GLint);
 
                 tex_image_2d(TEXTURE_RECTANGLE_ARB, 0 as GLint, RGBA as GLint,
-                             size.width as GLsizei, size.height as GLsizei, 0 as GLint, BGRA,
+                             size.width as GLsizei, size.height as GLsizei, 0 as GLint, RGBA,
                              UNSIGNED_INT_8_8_8_8_REV, Some(data));
             }
         }
