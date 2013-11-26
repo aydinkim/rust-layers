@@ -50,11 +50,19 @@ static FRAGMENT_RECTANGLE_SHADER_SOURCE: &'static str = "
 
     varying vec2 vTextureCoord;
 
-    uniform sampler2DRect uSampler;
+    #ifdef GL_ES
+        uniform sampler2D uSampler;
+    #else
+        uniform sampler2DRect uSampler;
+    #endif
     uniform vec2 uSize;
 
     void main(void) {
+    #ifdef GL_ES
+        gl_FragColor = texture2D(uSampler, vTextureCoord.st);
+    #else
         gl_FragColor = texture2DRect(uSampler, vTextureCoord * uSize);
+    #endif
     }
 ";
 
