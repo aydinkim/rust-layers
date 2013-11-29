@@ -25,6 +25,9 @@ extern mod io_surface;
 #[cfg(target_os="linux")]
 extern mod xlib;
 
+#[cfg(target_os="android")]
+extern mod egl;
+
 pub mod layers;
 pub mod rendergl;
 pub mod scene;

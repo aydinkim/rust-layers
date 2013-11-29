@@ -7,71 +7,61 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Implementation of cross-process surfaces for Linux. This uses X pixmaps.
+//! Implementation of cross-process surfaces for Android. This uses EGL surface.
 
 use platform::surface::NativeSurfaceMethods;
 use texturegl::Texture;
 
 use geom::size::Size2D;
-use opengles::gl2::NO_ERROR;
+use opengles::gl2::{NO_ERROR, RGB, GLint, GLsizei, UNSIGNED_BYTE};
 use opengles::gl2;
+use egl::egl::{EGLContext, EGLDisplay, EGL_DEFAULT_DISPLAY, EGLSurface, EGL_DRAW};
+use egl::egl::{GetCurrentDisplay, GetDisplay, DestroyContext, GetCurrentSurface, GetCurrentContext};
 use std::cast;
-use std::libc::{c_char, c_int, c_uint, c_void};
+use std::libc::{c_char, c_int, c_uint, c_void, malloc, free};
 use std::ptr;
 
-/// The display and visual info. This is needed in order to upload on the painting side. This holds
-/// a *strong* reference to the display and will close it when done.
-///
-/// FIXME(pcwalton): Mark nonsendable and noncopyable.
 pub struct NativePaintingGraphicsContext{
-    //To be implemented
-    dummy: bool,
+    display : EGLDisplay,
 }
 
 impl NativePaintingGraphicsContext {
     #[fixed_stack_segment]
     pub fn from_metadata(metadata: &NativeGraphicsMetadata) -> NativePaintingGraphicsContext {
-        //To be implemented
-        unsafe {
-            NativePaintingGraphicsContext {
-                dummy : false,
-            }
-        }
+       unsafe {
+           NativePaintingGraphicsContext {
+               display : metadata.display,
+           }
+       }
     }
 }
 
 impl Drop for NativePaintingGraphicsContext {
     #[fixed_stack_segment]
     fn drop(&mut self) {
-        //To be implemented
+        //let display: EGLDisplay = GetDisplay(EGL_DEFAULT_DISPLAY as *c_void);
+        //DestroyContext(display,self.context);
     }
 }
 
-/// The display, visual info, and framebuffer configuration. This is needed in order to bind to a
-/// texture on the compositor side. This holds only a *weak* reference to the display and does not
-/// close it.
-///
-/// FIXME(pcwalton): Unchecked weak references are bad and can violate memory safety. This is hard
-/// to fix because the Display is given to us by the native windowing system, but we should fix it
-/// someday.
-///
-/// FIXME(pcwalton): Mark nonsendable.
 pub struct NativeCompositingGraphicsContext {
-    //To be implemented
-    dummy : bool,
+    display : EGLDisplay,
+    context : EGLContext,
+    surface : EGLSurface,
 }
 
 impl NativeCompositingGraphicsContext {
     pub fn new() -> NativeCompositingGraphicsContext {
-        //To be implemented
         NativeCompositingGraphicsContext {
-            dummy : true,
+            display : GetCurrentDisplay(),
+            context : GetCurrentContext(),
+            surface : GetCurrentSurface(EGL_DRAW),
         }
     }
 }
 
 pub struct NativeGraphicsMetadata {
-    dummy: bool,
+    display : EGLDisplay,
 }
 
 #[deriving(Eq)]
@@ -80,24 +70,23 @@ pub enum NativeSurfaceTransientData {
 }
 
 pub struct NativeSurface {
-    //To be implemented
-    /// Whether this pixmap will leak if the destructor runs. This is for debugging purposes.
+    egl_surface: EGLSurface,
     will_leak: bool,
 }
 
 impl Drop for NativeSurface {
     fn drop(&mut self) {
         if self.will_leak {
-            fail!("You should have disposed of the pixmap properly with destroy()! This pixmap \
-                   will leak!");
+            fail!("EGL fail in NativeSurface::Drop!");
         }
     }
 }
 
 impl NativeSurface {
     #[fixed_stack_segment]
-    pub fn from_eglsurface(surface: /*to be changed to egl surface type*/*c_void) -> NativeSurface {
+    pub fn from_imageKHR(surface: EGLSurface) -> NativeSurface {
         NativeSurface {
+            egl_surface: surface,
             will_leak: true,
         }
     }
@@ -105,12 +94,21 @@ impl NativeSurface {
 
 impl NativeSurfaceMethods for NativeSurface {
     #[fixed_stack_segment]
-    fn new(native_context: &NativePaintingGraphicsContext, size: Size2D<i32>, stride: i32)
-           -> NativeSurface {
-               //To be implemented
-               NativeSurface {
-                   will_leak: false,
-               }
+    fn new(native_context: &NativePaintingGraphicsContext, size: Size2D<i32>, stride: i32) -> NativeSurface {
+        /*let mut depth = ((stride/size.width) * 8) as c_int;
+        let mut len = size.width * size.height * depth;
+        unsafe {
+            let mut data = malloc(len as u32);
+            NativeSurface {
+            pixmap: cast::transmute(data),
+            will_leak: false,
+            }
+        }*/
+
+        NativeSurface {
+            egl_surface:GetCurrentSurface(EGL_DRAW),
+            will_leak : false,
+        }
     }
 
     /// This may only be called on the compositor side.
@@ -120,6 +118,9 @@ impl NativeSurfaceMethods for NativeSurface {
                        texture: &Texture,
                        _size: Size2D<int>) {
         //To be implemented
+        let _bound = texture.bind();
+        //gl2::tex_image_2d(self.target.as_gl_target(), 0, RGB as GLint, _size.width as GLsizei, _size.height as GLsizei, 0, RGB, UNSIGNED_BYTE, self.pixmap);
+
     }
 
     /// This may only be called on the painting side.
@@ -129,14 +130,13 @@ impl NativeSurfaceMethods for NativeSurface {
     }
 
     fn get_id(&self) -> int {
-        //To be implemented
-        1
+        self.egl_surface as int
     }
 
 #[fixed_stack_segment]
     fn destroy(&mut self, graphics_context: &NativePaintingGraphicsContext) {
         unsafe {
-            //To be implemented
+            //free(self.pixmap);
             self.mark_wont_leak()
         }
     }
