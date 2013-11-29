@@ -13,13 +13,18 @@ use platform::surface::NativeSurfaceMethods;
 use texturegl::Texture;
 
 use geom::size::Size2D;
-use opengles::gl2::{NO_ERROR, RGB, GLint, GLsizei, UNSIGNED_BYTE};
+use opengles::gl2::{NO_ERROR, RGB, RGBA, GLint, GLsizei, UNSIGNED_BYTE, TEXTURE_2D, GLbyte};
 use opengles::gl2;
-use egl::egl::{EGLContext, EGLDisplay, EGL_DEFAULT_DISPLAY, EGLSurface, EGL_DRAW};
-use egl::egl::{GetCurrentDisplay, GetDisplay, DestroyContext, GetCurrentSurface, GetCurrentContext};
+use egl::egl::{EGLContext, EGLDisplay, EGL_DEFAULT_DISPLAY, EGLSurface, EGL_DRAW, EGL_BACK_BUFFER, EGLNativePixmapType};
+use egl::egl::{EGL_RED_SIZE, EGL_BLUE_SIZE, EGL_GREEN_SIZE, EGL_ALPHA_SIZE,
+                    EGL_NONE};
+use egl::egl::{EGLConfig, EGLint, EGLBoolean};
+use egl::egl::{EGL_NO_DISPLAY, EGL_DEFAULT_DISPLAY, EGL_NO_CONTEXT, EGL_CONTEXT_CLIENT_VERSION};
+use egl::egl::{GetCurrentDisplay, GetDisplay, DestroyContext, GetCurrentSurface, GetCurrentContext, BindTexImage, eglCreatePixmapSurface, eglSwapBuffers, ChooseConfig};
 use std::cast;
 use std::libc::{c_char, c_int, c_uint, c_void, malloc, free};
 use std::ptr;
+use std::vec;
 
 pub struct NativePaintingGraphicsContext{
     display : EGLDisplay,
@@ -70,7 +75,7 @@ pub enum NativeSurfaceTransientData {
 }
 
 pub struct NativeSurface {
-    egl_surface: EGLSurface,
+    pixmap: EGLNativePixmapType,
     will_leak: bool,
 }
 
@@ -84,9 +89,9 @@ impl Drop for NativeSurface {
 
 impl NativeSurface {
     #[fixed_stack_segment]
-    pub fn from_imageKHR(surface: EGLSurface) -> NativeSurface {
+    pub fn from_pixmap(pixmap: EGLNativePixmapType) -> NativeSurface {
         NativeSurface {
-            egl_surface: surface,
+            pixmap : pixmap,
             will_leak: true,
         }
     }
@@ -106,7 +111,7 @@ impl NativeSurfaceMethods for NativeSurface {
         }*/
 
         NativeSurface {
-            egl_surface:GetCurrentSurface(EGL_DRAW),
+            pixmap: ptr::null(),
             will_leak : false,
         }
     }
@@ -118,9 +123,40 @@ impl NativeSurfaceMethods for NativeSurface {
                        texture: &Texture,
                        _size: Size2D<int>) {
         //To be implemented
-        let _bound = texture.bind();
-        //gl2::tex_image_2d(self.target.as_gl_target(), 0, RGB as GLint, _size.width as GLsizei, _size.height as GLsizei, 0, RGB, UNSIGNED_BYTE, self.pixmap);
+        //let _bound = texture.bind();
 
+        let mut numconfig : EGLint = 0;
+        let mut myconfig : EGLConfig = ptr::null();
+        let attr_list = ~[ EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_NONE];
+        let attr_list = vec::raw::to_ptr(attr_list) as *i32;
+        
+        let ret = ChooseConfig(native_context.display, attr_list, &mut myconfig, 1, &mut numconfig);
+        let attribute_list = 0 as *i32;
+
+        unsafe {
+        let mut image = eglCreatePixmapSurface(native_context.display, myconfig, self.pixmap, attribute_list);
+        eglSwapBuffers(native_context.display, image);
+        }
+        //BindTexImage(native_context.display, self.egl_surface, EGL_BACK_BUFFER);
+
+/*        let mut depth = 4 as c_int;
+        let mut len = _size.width * _size.height * depth as int;
+        let mut pixmap:~[u8] = ~[];
+        let mut cnt = 0;
+        while cnt < len {
+            pixmap.push(125);
+            cnt+=1;
+        }
+
+        let mut _pixmap:&[u8] = pixmap;
+        unsafe {
+        gl2::tex_image_2d(TEXTURE_2D, 0, RGBA as GLint, _size.width as GLsizei, _size.height as GLsizei, 0, RGBA, UNSIGNED_BYTE, Some(_pixmap));
+        }
+        */
     }
 
     /// This may only be called on the painting side.
@@ -130,7 +166,7 @@ impl NativeSurfaceMethods for NativeSurface {
     }
 
     fn get_id(&self) -> int {
-        self.egl_surface as int
+        self.pixmap as int
     }
 
 #[fixed_stack_segment]
